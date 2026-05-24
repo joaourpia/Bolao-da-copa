@@ -1,0 +1,14 @@
+# Segredos e dados locais - NUNCA suba para o GitHub
+.streamlit/secrets.toml
+data/local_db.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Sistema
+.DS_Store
+Thumbs.db

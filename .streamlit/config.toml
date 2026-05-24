@@ -1,0 +1,15 @@
+# Tema visual inspirado na Copa do Mundo 2026
+[theme]
+base = "dark"
+primaryColor = "#FF2D78"
+backgroundColor = "#0B1437"
+secondaryBackgroundColor = "#152253"
+textColor = "#EEF2FF"
+font = "sans serif"
+
+[server]
+# Mantem o app responsivo em planos gratuitos
+maxUploadSize = 5
+
+[browser]
+gatherUsageStats = false
