@@ -113,7 +113,7 @@ def cabecalho(titulo, subtitulo=""):
     )
 
 
-def time_bloco(code, largura_bandeira=120):
+def time_bloco(code, largura_bandeira=160):
     """HTML de uma selecao: bandeira em cima, nome embaixo."""
     url = flags.bandeira_url(code, largura_bandeira)
     nome = flags.nome_pt(code)
