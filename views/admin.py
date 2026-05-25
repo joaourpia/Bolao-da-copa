@@ -29,10 +29,10 @@ def _validar_cadastro(nome, usuario, senha):
 
 
 def _aba_participantes():
-    st.markdown("### Cadastrar novo participante")
+    st.markdown("### Cadastrar participante")
     st.caption(
-        "Cada participante cadastrado entra automaticamente no bolao valendo "
-        f"{utils.moeda(config.VALOR_ENTRADA)}."
+        "Em geral cada pessoa cria a propria conta na tela inicial. Use o "
+        "formulario abaixo so se quiser cadastrar alguem manualmente."
     )
     with st.form("novo_participante", clear_on_submit=True):
         cols = st.columns(3)
@@ -61,8 +61,7 @@ def _aba_participantes():
     st.markdown(f"### Participantes cadastrados ({total})")
     if total:
         st.caption(
-            "Total arrecadado: "
-            f"{utils.moeda(total * config.VALOR_ENTRADA)}"
+            f"Total arrecadado: {utils.moeda(total * config.VALOR_ENTRADA)}"
         )
     if not participantes:
         st.info("Nenhum participante cadastrado ainda.")
@@ -178,50 +177,124 @@ def _aba_acompanhamento():
 
 
 # ----------------------------------------------------------------------
-# Aba: Sistema
+# Aba: Sistema - diagnostico da conexao com o Google Sheets
 # ----------------------------------------------------------------------
+def _diagnostico_sheets():
+    """Testa a conexao com o Google Sheets na hora e devolve o resultado."""
+    res = {
+        "gcp": False, "gsheets": False, "spreadsheet_id": "",
+        "client_email": "", "conectou": False, "abas": [],
+        "erro": "", "dica": "",
+    }
+    creds = segredos.secao("gcp_service_account")
+    gsheets = segredos.secao("gsheets")
+    res["gcp"] = bool(creds)
+    res["gsheets"] = bool(gsheets)
+    res["spreadsheet_id"] = str(gsheets.get("spreadsheet_id", "")).strip()
+    res["client_email"] = str(creds.get("client_email", "")).strip()
+
+    if not creds:
+        res["erro"] = "A secao [gcp_service_account] nao foi encontrada nos Secrets."
+        res["dica"] = (
+            "Adicione a secao [gcp_service_account] no painel Secrets do "
+            "Streamlit, com TODOS os campos do arquivo JSON da conta de servico."
+        )
+        return res
+    if not res["spreadsheet_id"] or "COLE_AQUI" in res["spreadsheet_id"]:
+        res["erro"] = "A secao [gsheets] esta sem um spreadsheet_id valido."
+        res["dica"] = (
+            'Adicione a secao [gsheets] nos Secrets com '
+            'spreadsheet_id = "..." (o trecho da URL da planilha entre '
+            "/d/ e /edit)."
+        )
+        return res
+    try:
+        import gspread
+
+        gc = gspread.service_account_from_dict(creds)
+        planilha = gc.open_by_key(res["spreadsheet_id"])
+        res["abas"] = [ws.title for ws in planilha.worksheets()]
+        res["conectou"] = True
+    except Exception as erro:  # noqa: BLE001
+        res["erro"] = f"{type(erro).__name__}: {erro}"
+        texto = f"{type(erro).__name__} {erro}".lower()
+        if "notfound" in texto or "not found" in texto or "404" in texto:
+            res["dica"] = (
+                "A planilha nao foi encontrada. Confira se o spreadsheet_id "
+                "esta correto E, principalmente, se a planilha foi "
+                "COMPARTILHADA (como Editor) com o e-mail da conta de servico "
+                f"mostrado acima: {res['client_email']}"
+            )
+        elif ("permission" in texto or "403" in texto
+              or "disabled" in texto or "has not been used" in texto):
+            res["dica"] = (
+                "Acesso negado. Faca as duas coisas: (1) compartilhe a "
+                f"planilha como Editor com {res['client_email']}; (2) ative a "
+                "Google Sheets API e a Google Drive API no projeto do Google "
+                "Cloud (APIs e servicos > Biblioteca)."
+            )
+        else:
+            res["dica"] = (
+                "Verifique os campos da secao [gcp_service_account] nos "
+                "Secrets, principalmente o private_key (ele deve estar em "
+                "uma unica linha, com os \\n no lugar das quebras)."
+            )
+    return res
+
+
 def _aba_sistema():
     st.markdown("### Status do sistema")
+    diag = _diagnostico_sheets()
 
-    if database.modo_banco() == "sheets":
-        st.success("Banco de dados: Google Sheets conectado.")
+    if diag["conectou"]:
+        st.success("Google Sheets CONECTADO com sucesso!")
+        st.caption("Abas encontradas na planilha: " + ", ".join(diag["abas"]))
     else:
-        st.warning(
-            "Banco de dados: MODO LOCAL de teste (data/local_db.json). "
-            "Os dados nao ficam salvos na nuvem. Configure o Google Sheets "
-            "para o uso definitivo - veja o README."
+        st.error(
+            "O app NAO esta conectado ao Google Sheets - ele esta em modo "
+            "local e os dados sao temporarios (se perdem quando o app "
+            "reinicia)."
         )
 
-    dados = buscar_jogos(segredos.chave_api_futebol())
+    st.markdown("#### Diagnostico da conexao")
+    st.write(
+        "- Secao **[gcp_service_account]** nos Secrets: "
+        + ("encontrada" if diag["gcp"] else "**NAO encontrada**")
+    )
+    st.write(
+        "- Secao **[gsheets]** nos Secrets: "
+        + ("encontrada" if diag["gsheets"] else "**NAO encontrada**")
+    )
+    st.write(f"- spreadsheet_id lido: `{diag['spreadsheet_id'] or '(vazio)'}`")
+    st.write(
+        f"- e-mail da conta de servico: `{diag['client_email'] or '(vazio)'}`"
+    )
+
+    if diag["client_email"] and not diag["conectou"]:
+        st.info(
+            "A planilha do Google PRECISA estar compartilhada, como **Editor**, "
+            f"com este e-mail:\n\n**{diag['client_email']}**"
+        )
+    if diag["erro"]:
+        st.error("Erro tecnico retornado: " + diag["erro"])
+    if diag["dica"]:
+        st.warning("Como resolver: " + diag["dica"])
+
+    st.divider()
     if segredos.chave_api_futebol():
         st.success("API de resultados: chave configurada.")
     else:
-        st.warning(
-            "API de resultados: nenhuma chave configurada. Os resultados "
-            "nao serao atualizados automaticamente."
-        )
-    if dados["fonte"] == "api":
-        st.success("Ultima leitura: dados recebidos da API oficial.")
-    else:
-        st.info(
-            "Ultima leitura: usando a tabela de referencia do sorteio "
-            "(sem resultados ao vivo)."
-        )
-
-    if st.session_state.get("_erro_api"):
-        st.caption(f"Aviso da API: {st.session_state['_erro_api']}")
-    if st.session_state.get("_erro_db"):
-        st.caption(st.session_state["_erro_db"])
+        st.warning("API de resultados: nenhuma chave configurada.")
 
     st.divider()
-    st.markdown("### Sincronizar resultados")
+    st.markdown("### Recarregar / reconectar")
     st.caption(
-        "Os resultados sao atualizados automaticamente a cada poucos minutos. "
-        "Use o botao abaixo para forcar uma atualizacao imediata."
+        "Depois de ajustar os Secrets ou o compartilhamento da planilha, "
+        "clique abaixo para o app tentar reconectar."
     )
-    if st.button("Sincronizar agora", type="primary"):
+    if st.button("Recarregar e reconectar", type="primary"):
         st.cache_data.clear()
-        st.success("Cache limpo - os dados serao recarregados da API.")
+        st.cache_resource.clear()
         st.rerun()
 
 
