@@ -3,8 +3,7 @@ Camada de dados do Bolao da Copa 2026.
 
 O "banco" e uma planilha do Google (3 abas: participantes, palpites, config).
 Se as credenciais do Google nao estiverem configuradas, o app cai para um
-MODO LOCAL de teste, gravando tudo em data/local_db.json - util para rodar
-na sua maquina antes de publicar.
+MODO LOCAL de teste, gravando tudo em data/local_db.json.
 
 Todas as leituras ficam em cache curto (15s) para deixar o app rapido sem
 estourar os limites do Google. Cada escrita limpa o cache correspondente.
@@ -12,27 +11,21 @@ estourar os limites do Google. Cada escrita limpa o cache correspondente.
 
 import json
 import os
+import uuid
 from datetime import datetime
 
 import streamlit as st
 
 from lib import config, segredos
 
-# Cabecalhos das abas / colunas
 _H_PARTICIPANTES = ["id", "nome", "usuario", "senha_hash", "salt", "papel", "criado_em"]
 _H_PALPITES = ["participante_id", "palpites_json", "atualizado_em"]
 _H_CONFIG = ["chave", "valor"]
 
 
-# ----------------------------------------------------------------------
-# Conexao
-# ----------------------------------------------------------------------
 @st.cache_resource(show_spinner=False)
 def _conexao():
-    """
-    Conecta ao backend de dados.
-    Retorna ('sheets', {nome_aba: worksheet}) ou ('local', caminho_arquivo).
-    """
+    """Conecta ao backend. Retorna ('sheets', {aba: ws}) ou ('local', caminho)."""
     creds = segredos.secao("gcp_service_account")
     gsheets = segredos.secao("gsheets")
     tem_sheets = bool(creds) and bool(gsheets.get("spreadsheet_id"))
@@ -76,9 +69,6 @@ def modo_banco():
     return _conexao()[0]
 
 
-# ----------------------------------------------------------------------
-# Backend local (arquivo JSON)
-# ----------------------------------------------------------------------
 def _ler_local(caminho):
     if not os.path.exists(caminho):
         return {"participantes": [], "palpites": [], "config": []}
@@ -99,9 +89,6 @@ def _gravar_local(caminho, dados):
         json.dump(dados, f, ensure_ascii=False, indent=2)
 
 
-# ----------------------------------------------------------------------
-# Leituras (com cache curto)
-# ----------------------------------------------------------------------
 @st.cache_data(ttl=15, show_spinner=False)
 def listar_participantes():
     """Lista de participantes (apenas jogadores - o admin nao entra aqui)."""
@@ -176,29 +163,19 @@ def obter_participante_por_usuario(usuario):
     return None
 
 
-# ----------------------------------------------------------------------
-# Escritas
-# ----------------------------------------------------------------------
 def _agora():
     return datetime.now(config.TZ_BR).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _proximo_id(participantes):
-    maior = 0
-    for p in participantes:
-        try:
-            maior = max(maior, int(p["id"]))
-        except (ValueError, KeyError, TypeError):
-            pass
-    return str(maior + 1)
+def _novo_id():
+    """Identificador unico para um participante (resistente a colisoes)."""
+    return uuid.uuid4().hex[:10]
 
 
 def adicionar_participante(nome, usuario, senha_hash, salt):
     """Cria um novo participante. Retorna o id gerado."""
-    atuais = listar_participantes()
-    novo_id = _proximo_id(atuais)
-    criado = _agora()
-    linha = [novo_id, nome, usuario, senha_hash, salt, "participante", criado]
+    novo_id = _novo_id()
+    linha = [novo_id, nome, usuario, senha_hash, salt, "participante", _agora()]
 
     modo, ref = _conexao()
     if modo == "sheets":
