@@ -14,7 +14,7 @@ APP_ICONE = "trofeu"  # usado apenas como referencia textual
 # ----------------------------------------------------------------------
 # Valor de entrada por participante (R$). O total arrecadado e
 # calculado automaticamente: nº de participantes x VALOR_ENTRADA.
-VALOR_ENTRADA = 20.0
+VALOR_ENTRADA = 25.0
 
 # Pontuacao (apenas a fase de grupos conta para o bolao)
 PONTOS_PLACAR_EXATO = 3   # acertou o placar exato
