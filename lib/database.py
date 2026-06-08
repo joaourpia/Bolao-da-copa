@@ -18,7 +18,7 @@ import streamlit as st
 
 from lib import config, segredos
 
-_H_PARTICIPANTES = ["id", "nome", "usuario", "senha_hash", "salt", "papel", "criado_em"]
+_H_PARTICIPANTES = ["id", "nome", "usuario", "senha_hash", "salt", "papel", "criado_em", "precisa_trocar"]
 _H_PALPITES = ["participante_id", "palpites_json", "atualizado_em"]
 _H_CONFIG = ["chave", "valor"]
 
@@ -106,6 +106,7 @@ def listar_participantes():
             "salt": str(r.get("salt", "")),
             "papel": str(r.get("papel", "participante")),
             "criado_em": str(r.get("criado_em", "")),
+            "precisa_trocar": str(r.get("precisa_trocar", "")).strip() == "1",
         }
         for r in registros
         if str(r.get("id", "")).strip()
@@ -175,7 +176,7 @@ def _novo_id():
 def adicionar_participante(nome, usuario, senha_hash, salt):
     """Cria um novo participante. Retorna o id gerado."""
     novo_id = _novo_id()
-    linha = [novo_id, nome, usuario, senha_hash, salt, "participante", _agora()]
+    linha = [novo_id, nome, usuario, senha_hash, salt, "participante", _agora(), ""]
 
     modo, ref = _conexao()
     if modo == "sheets":
@@ -189,8 +190,10 @@ def adicionar_participante(nome, usuario, senha_hash, salt):
     return novo_id
 
 
-def atualizar_senha(participante_id, senha_hash, salt):
-    """Redefine a senha de um participante."""
+def atualizar_senha(participante_id, senha_hash, salt, precisa_trocar=False):
+    """Redefine a senha de um participante. Se precisa_trocar=True, marca
+    o usuario para ser obrigado a definir uma nova senha no proximo login."""
+    flag = "1" if precisa_trocar else ""
     modo, ref = _conexao()
     if modo == "sheets":
         linha = _linha_por_valor(ref["participantes"], participante_id, coluna=1)
@@ -199,12 +202,17 @@ def atualizar_senha(participante_id, senha_hash, salt):
                 range_name=f"D{linha}:E{linha}",
                 values=[[senha_hash, salt]],
             )
+            ref["participantes"].update(
+                range_name=f"H{linha}",
+                values=[[flag]],
+            )
     else:
         dados = _ler_local(ref)
         for p in dados["participantes"]:
             if str(p.get("id")) == str(participante_id):
                 p["senha_hash"] = senha_hash
                 p["salt"] = salt
+                p["precisa_trocar"] = flag
         _gravar_local(ref, dados)
     listar_participantes.clear()
 
