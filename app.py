@@ -114,6 +114,46 @@ def tela_entrada():
 
 
 # ---------------------------------------------------------------------
+# Troca obrigatoria de senha (quando o organizador zera a do usuario)
+# ---------------------------------------------------------------------
+def tela_trocar_senha(usuario):
+    ui.cabecalho(config.APP_TITULO, "Defina uma nova senha")
+    _, meio, _ = st.columns([1, 1.6, 1])
+    with meio:
+        st.warning(
+            "Sua senha foi ZERADA pelo organizador. "
+            "Crie uma nova senha para continuar."
+        )
+        with st.form("trocar_senha_forcado"):
+            nova = st.text_input(
+                "Nova senha (no minimo 4 caracteres)", type="password"
+            )
+            nova2 = st.text_input("Repita a nova senha", type="password")
+            enviar = st.form_submit_button(
+                "Salvar nova senha", type="primary",
+                use_container_width=True,
+            )
+        if enviar:
+            if len(nova or "") < 4:
+                st.error("A senha deve ter ao menos 4 caracteres.")
+            elif nova != nova2:
+                st.error("As duas senhas digitadas nao sao iguais.")
+            else:
+                senha_hash, salt = auth.gerar_hash(nova)
+                database.atualizar_senha(
+                    usuario["id"], senha_hash, salt, precisa_trocar=False
+                )
+                usuario["precisa_trocar"] = False
+                auth.fazer_login(usuario)
+                st.success("Senha atualizada. Bem-vindo!")
+                st.rerun()
+        st.divider()
+        if st.button("Sair", use_container_width=True):
+            auth.logout()
+            st.rerun()
+
+
+# ---------------------------------------------------------------------
 # Aplicativo (apos o login)
 # ---------------------------------------------------------------------
 def aplicativo(usuario):
@@ -159,10 +199,12 @@ def aplicativo(usuario):
 # ---------------------------------------------------------------------
 def main():
     usuario_logado = auth.usuario_atual()
-    if usuario_logado:
-        aplicativo(usuario_logado)
-    else:
+    if not usuario_logado:
         tela_entrada()
+    elif usuario_logado.get("precisa_trocar"):
+        tela_trocar_senha(usuario_logado)
+    else:
+        aplicativo(usuario_logado)
 
 
 main()
