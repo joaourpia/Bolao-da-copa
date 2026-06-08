@@ -68,23 +68,32 @@ def _aba_participantes():
         return
 
     for p in participantes:
-        cols = st.columns([3, 2.4, 2, 1.4])
+        cols = st.columns([3, 2, 1.5, 1.2])
         cols[0].markdown(f"**{p['nome']}**")
-        cols[1].caption(f"login: {p['usuario']}")
-        with cols[2].popover("Redefinir senha"):
-            nova = st.text_input(
-                "Nova senha", type="password", key=f"ns_{p['id']}"
+        rotulo = f"login: {p['usuario']}"
+        if p.get("precisa_trocar"):
+            rotulo += "  -  senha zerada (aguarda troca)"
+        cols[1].caption(rotulo)
+        if cols[2].button("Zerar senha", key=f"zs_{p['id']}"):
+            temp = auth.gerar_senha_temporaria()
+            senha_hash, salt = auth.gerar_hash(temp)
+            database.atualizar_senha(
+                p["id"], senha_hash, salt, precisa_trocar=True
             )
-            if st.button("Salvar nova senha", key=f"bs_{p['id']}"):
-                if len(nova or "") < 4:
-                    st.error("Minimo de 4 caracteres.")
-                else:
-                    h, s = auth.gerar_hash(nova)
-                    database.atualizar_senha(p["id"], h, s)
-                    st.success("Senha atualizada.")
+            st.session_state[f"_temp_senha_{p['id']}"] = temp
         if cols[3].button("Remover", key=f"rm_{p['id']}"):
             database.remover_participante(p["id"])
             st.rerun()
+        if st.session_state.get(f"_temp_senha_{p['id']}"):
+            temp = st.session_state[f"_temp_senha_{p['id']}"]
+            ca, cb = st.columns([5, 1])
+            ca.success(
+                f"Senha temporaria de **{p['nome']}**: **{temp}**  -  "
+                "envie para a pessoa; ela sera obrigada a trocar no proximo login."
+            )
+            if cb.button("Esconder", key=f"hide_{p['id']}"):
+                st.session_state.pop(f"_temp_senha_{p['id']}", None)
+                st.rerun()
 
 
 # ----------------------------------------------------------------------
