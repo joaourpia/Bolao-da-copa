@@ -2,13 +2,17 @@
 Autenticacao do Bolao da Copa 2026.
 
 - O ADMIN (organizador) e definido no secrets.toml.
-- Os PARTICIPANTES sao cadastrados pelo admin e ficam na planilha,
-  com a senha guardada apenas como hash (PBKDF2-SHA256 + salt).
+- Os PARTICIPANTES criam a propria conta no app (auto-cadastro) e ficam
+  na planilha, com a senha guardada apenas como hash (PBKDF2-SHA256 + salt).
+- O organizador pode "zerar" a senha de um participante - isso gera uma
+  senha temporaria e marca o usuario para ser obrigado a definir uma nova
+  senha no proximo login.
 """
 
 import hashlib
 import hmac
 import os
+import secrets
 
 import streamlit as st
 
@@ -39,10 +43,18 @@ def verificar(senha, salt_hex, hash_esperado):
         return False
 
 
+def gerar_senha_temporaria(tamanho=8):
+    """Gera uma senha temporaria aleatoria, sem caracteres ambiguos."""
+    alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(secrets.choice(alfabeto) for _ in range(tamanho))
+
+
 def autenticar(usuario, senha):
     """
     Tenta logar. Retorna o dicionario do usuario ou None.
     Papel: 'admin' (organizador) ou 'participante' (jogador).
+    O campo 'precisa_trocar' indica se o usuario deve definir uma nova
+    senha antes de acessar o app (foi zerada pelo organizador).
     """
     usuario = (usuario or "").strip()
     senha = senha or ""
@@ -59,6 +71,7 @@ def autenticar(usuario, senha):
                 "nome": admin.get("nome", "Organizador"),
                 "usuario": adm_user,
                 "papel": "admin",
+                "precisa_trocar": False,
             }
         return None
 
@@ -70,6 +83,7 @@ def autenticar(usuario, senha):
             "nome": p["nome"],
             "usuario": p["usuario"],
             "papel": "participante",
+            "precisa_trocar": bool(p.get("precisa_trocar", False)),
         }
     return None
 
