@@ -299,6 +299,21 @@ def render():
         por_grupo.setdefault(j["grupo"], []).append(j)
     letras = sorted(por_grupo)
 
+    # PROTECAO contra "palpite que mudou sozinho":
+    # se outro aparelho/aba salvou novos valores depois que esta sessao
+    # carregou o formulario, ressincroniza os campos a partir do banco
+    # para o proximo Salvar nao sobrescrever os novos valores com
+    # os antigos da sessao. A "assinatura" do banco e comparada com
+    # a ultima que esta sessao viu.
+    hash_db = _hash_palpites(palpites_salvos)
+    if st.session_state.get("_hash_palpites_db") != hash_db:
+        for j in jogos:
+            mk = j["match_key"]
+            gc_db, gf_db = _valores_salvos(j, palpites_salvos)
+            st.session_state[f"casa_{mk}"] = int(gc_db) if gc_db is not None else 0
+            st.session_state[f"fora_{mk}"] = int(gf_db) if gf_db is not None else 0
+        st.session_state["_hash_palpites_db"] = hash_db
+
     with st.form("form_palpites"):
         abas = st.tabs([f"Grupo {l}" for l in letras])
         for aba, letra in zip(abas, letras):
