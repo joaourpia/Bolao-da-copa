@@ -6,8 +6,14 @@ from lib import config, database, scoring, segredos, ui, utils
 from lib.football_api import buscar_jogos, jogo_finalizado
 
 
+@st.fragment(run_every=60)
 def render():
     st.markdown("## Painel do bolao")
+    st.caption(
+        "Atualizado em "
+        f"{utils.agora().strftime('%H:%M:%S')} "
+        "- recarrega sozinho a cada minuto."
+    )
 
     participantes = database.listar_participantes()
     dados = buscar_jogos(segredos.chave_api_futebol())

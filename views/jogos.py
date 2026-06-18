@@ -59,9 +59,15 @@ def _card_jogo(jogo, palpites):
     st.caption(texto)
 
 
+@st.fragment(run_every=60)
 def render():
     usuario = st.session_state["usuario_logado"]
     st.markdown("## Jogos e resultados")
+    st.caption(
+        "Atualizado em "
+        f"{utils.agora().strftime('%H:%M:%S')} "
+        "- recarrega sozinho a cada minuto."
+    )
 
     dados = buscar_jogos(segredos.chave_api_futebol())
     jogos = dados["jogos"]
